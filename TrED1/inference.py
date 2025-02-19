@@ -9,7 +9,7 @@ import re
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
-preprocessed_data = torch.load('data/preprocessed_data_01.pt', weights_only=True, map_location=device)
+preprocessed_data = torch.load('training_data/preprocessed_data_01.pt', weights_only=True, map_location=device)
 
 en_tokenizer = spacy.load('en_core_web_sm')
 fr_tokenizer = spacy.load('fr_core_news_sm')

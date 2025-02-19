@@ -68,7 +68,7 @@ def add_special_tokens(tokenized_texts, vocab):
     return tokenized_texts
 
 def preprocessing_pipeline(path, batch_slice, input_slice, output_slice, tokenizers, device):
-    print("\nPreprocessing data...")
+    print("\nPreprocessing training_data...")
     train_inputs, train_targets = load_dataset(path, batch_slice, input_slice, output_slice)
 
     en_tokenizer = tokenizers["en_tokenizer"]

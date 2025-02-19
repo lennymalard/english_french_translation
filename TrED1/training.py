@@ -32,9 +32,9 @@ def train(model, dataloader, criterion, optimizer, epochs, device):
             step_bar.set_description(f"Epoch [{epoch + 1}/{epochs}]")
             step_bar.set_postfix({"loss": loss.item() if 'loss' in locals() else 1e7, "device": device})
 
-            enc_input_batch = batch['data']['encoder_inputs'].to(device)
-            dec_input_batch = batch['data']['decoder_inputs'].to(device)
-            dec_target_batch = batch['data']['decoder_targets'].to(device)
+            enc_input_batch = batch['training_data']['encoder_inputs'].to(device)
+            dec_input_batch = batch['training_data']['decoder_inputs'].to(device)
+            dec_target_batch = batch['training_data']['decoder_targets'].to(device)
 
             enc_lengths_batch = batch['lengths']['encoder_lengths'].to('cpu')
             dec_lengths_batch = batch['lengths']['decoder_lengths'].to('cpu')
@@ -57,7 +57,7 @@ def main():
     global EN_VOCAB_SIZE
     global BATCH_SIZE
 
-    preprocessed_data = torch.load('data/preprocessed_data_01.pt', weights_only=True, map_location=torch.device(device))
+    preprocessed_data = torch.load('training_data/preprocessed_data_01.pt', weights_only=True, map_location=torch.device(device))
 
     train_inputs = preprocessed_data["train_inputs"]
     train_targets = preprocessed_data["train_targets"]
