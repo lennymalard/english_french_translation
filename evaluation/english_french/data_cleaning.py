@@ -97,15 +97,15 @@ inputs, targets = split_data(full_samples)
 tokenized_inputs = tokenize(inputs, tokenizers['en_tokenizer'], vocabs['en_vocab'])
 tokenized_targets = tokenize(targets, tokenizers['fr_tokenizer'], vocabs['en_vocab'])
 
-indexed_inputs = index_texts(tokenized_inputs, vocabs['en_vocab'])
+"""indexed_inputs = index_texts(tokenized_inputs, vocabs['en_vocab'])
 indexed_targets = index_texts(tokenized_targets, vocabs['fr_vocab'])
 
 padded_inputs = add_special_tokens(indexed_inputs, vocabs['en_vocab'])
 padded_targets = add_special_tokens(indexed_targets, vocabs['fr_vocab'])
 
 torch_inputs = torch.tensor(padded_inputs)
-torch_targets = torch.tensor(padded_targets)
+torch_targets = torch.tensor(padded_targets)"""
 
-dataset = {'inputs': torch_inputs, 'targets': torch_targets}
+dataset = {'inputs': inputs, 'targets': tokenized_targets}
 
-#torch.save(dataset, 'data/test_data.pt')
+torch.save(dataset, 'data/test_data.pt')

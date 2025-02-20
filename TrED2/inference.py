@@ -35,7 +35,7 @@ decoder = Decoder(vocab_size=FR_VOCAB_SIZE, pad_token=fr_vocab['value_index']['<
 model = EncoderDecoder(encoder, decoder)
 
 model.load_state_dict(
-    torch.load('parameters/parameters_02_19_2025-00_30_07.pt', weights_only=True, map_location=device))
+    torch.load('parameters/parameters_02_19_2025-12_16_44.pt', weights_only=True, map_location=device))
 model.eval()
 
 def preprocess(text, tokenizer, vocab):

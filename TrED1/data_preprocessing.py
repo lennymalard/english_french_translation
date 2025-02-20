@@ -5,6 +5,8 @@ import spacy
 from tqdm import tqdm
 import sys
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 def load_dataset(path, batch_slice, input_slice, output_slice):
     dataset_df = pd.read_csv(path)
     dataset = dataset_df.to_numpy()[batch_slice]
@@ -92,7 +94,7 @@ def preprocessing_pipeline(path, batch_slice, input_slice, output_slice, tokeniz
         "train_inputs": train_inputs,
         "train_targets": train_targets,
         "en_vocab": en_vocab,
-        "fr_vocab": fr_vocab,
+        "fr_vocab": fr_vocab
     }
 
     torch.save(training_data, "./preprocessed_data.pt")
