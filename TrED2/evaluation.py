@@ -1,4 +1,6 @@
 from torchmetrics.text import BLEUScore
+from nltk.translate import meteor
+from nltk.tokenize import word_tokenize
 import torch
 from training import get_lengths
 from inference import translate, token2text, predict_next_token, preprocess, check_sentence, normalize_output
@@ -17,14 +19,16 @@ def translate_test_data(texts, vocabs, tokenizers, verbose=True):
     return candidates
 
 def add_dim(texts):
+    texts = texts.copy()
     for i in range(len(texts)):
         texts[i] = [texts[i]]
     return texts
 
 def token2string(tokens):
-   for i in range(len(tokens)):
+    tokens = tokens.copy()
+    for i in range(len(tokens)):
        tokens[i] = ' '.join(tokens[i])
-   return tokens
+    return tokens
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 torch.cuda.empty_cache() if torch.cuda.is_available() else None
@@ -69,9 +73,14 @@ test_targets = token2string(test_targets)
 test_targets = add_dim(test_targets)
 
 bleu = BLEUScore()
-score = bleu(candidates, test_targets)
+bleu_score = bleu(candidates, test_targets)
 
-print(f"BLEU Score: {score}")
+print(f"BLEU Score: {format(bleu_score, '.4f')}")
+
+meteor_scores = [meteor([word_tokenize(test_target[0])], word_tokenize(candidate)) for test_target, candidate in zip(test_targets, candidates)]
+meteor_score = sum(meteor_scores) / len(meteor_scores)
+
+print(f"METEOR Score: {format(meteor_score, '.4f')}")
 
 
 

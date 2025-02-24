@@ -1,5 +1,7 @@
 from torchmetrics.text import BLEUScore
 import torch
+from nltk.translate import meteor
+from nltk.tokenize import word_tokenize
 from training import get_lengths
 from inference import translate, token2text, predict_next_token, preprocess, check_sentence, normalize_output
 from EncoderDecoder import *
@@ -69,9 +71,14 @@ test_targets = token2string(test_targets)
 test_targets = add_dim(test_targets)
 
 bleu = BLEUScore()
-score = bleu(candidates, test_targets)
+bleu_score = bleu(candidates, test_targets)
 
-print(f"BLEU Score: {score}")
+print(f"BLEU Score: {bleu_score}")
+
+meteor_scores = [meteor([word_tokenize(test_target[0])], word_tokenize(candidate)) for test_target, candidate in zip(test_targets, candidates)]
+meteor_score = sum(meteor_scores) / len(meteor_scores)
+
+print(f"METEOR Score: {meteor_score}")
 
 
 
