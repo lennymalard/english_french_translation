@@ -62,7 +62,7 @@ encoder = Encoder(vocab_size=EN_VOCAB_SIZE, pad_token=en_vocab['value_index']['<
 decoder = Decoder(vocab_size=FR_VOCAB_SIZE, pad_token=fr_vocab['value_index']['<PAD>'])
 model = EncoderDecoder(encoder, decoder)
 
-model.load_state_dict(torch.load("parameters/parameters_02_23_2025-12_25_09.pt", weights_only=True, map_location=device))
+model.load_state_dict(torch.load("parameters/parameters_02_25_2025-06_16_58.pt", weights_only=True, map_location=device))
 model.eval()
 
 candidates = translate_test_data(test_inputs, vocabs, tokenizers)

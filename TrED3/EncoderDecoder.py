@@ -47,22 +47,26 @@ class Decoder(nn.Module):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, 512, padding_idx=pad_token)
         self.attention = Attention(2048, 512)
-        self.lstm = nn.LSTM(input_size=512, hidden_size=2048, batch_first=True)
-        self.linear = nn.Linear(4096, vocab_size)
+        self.lstm = nn.LSTM(input_size=2560, hidden_size=2048, batch_first=True)
+        self.linear = nn.Linear(2048, vocab_size)
         self.dropout = nn.Dropout(0.2)
         self.pad_token = pad_token
 
     def forward(self, x, encoder_output, hidden, lenghts, encoder_mask=None, decoder_mask=None):
         seq_len = x.size(1)
         x = self.embedding(x)
-        x = pack_padded_sequence(x, lenghts, batch_first=True, enforce_sorted=False)
-        x, hidden = self.lstm(x, hidden)
-        x = pad_packed_sequence(x, batch_first=True, total_length=seq_len)[0]
-        context = self.attention(hidden[0], encoder_output, mask=encoder_mask).unsqueeze(1).repeat(1, seq_len, 1)
-        x = torch.cat((x, context), dim=2)
+        for t in range(seq_len):
+            h_t, c_t = hidden
+            if decoder_mask is not None:
+                mask_t = decoder_mask[:, t]
+                h_t = h_t.masked_fill(mask_t.view(-1, 1, 1).transpose(0,1) == 0, 0)
+            context = self.attention(h_t, encoder_output, mask=encoder_mask)
+            input = torch.cat((x[: ,t].unsqueeze(1), context.unsqueeze(1)), dim=2)
+            output, hidden = self.lstm(input, hidden)
+            lstm_output = output if t == 0 else torch.cat([lstm_output, output], dim=1)
         if decoder_mask is not None:
-            x = x.masked_fill(decoder_mask.unsqueeze(-1) == 0, 0)
-        x = self.dropout(x)
+            lstm_output = lstm_output.masked_fill(decoder_mask.unsqueeze(-1) == 0, 0)
+        x = self.dropout(lstm_output)
         return  self.linear(x), hidden
 
 class EncoderDecoder(nn.Module):
