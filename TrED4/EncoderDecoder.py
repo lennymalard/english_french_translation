@@ -3,8 +3,19 @@ import torch.nn as nn
 import torch.nn.functional as F
 from math import sqrt
 
+class LayerNorm(nn.Module):
+    def __init__(self, d_model):
+        super().__init__()
+        self.gamma = nn.Parameter(torch.ones(d_model))
+        self.beta = nn.Parameter(torch.zeros(d_model))
+
+    def forward(self, x):
+        mean = torch.mean(x, dim=-1, keepdim=True)
+        std = torch.std(x, dim=-1, keepdim=True, unbiased=False) # Revoir diff entre BatchNorm et LayerNorm
+        return self.gamma * ((x - mean)/(std + 1e-8)) + self.beta
+
 class Attention(nn.Module):
-    def __init__(self, input_size, hidden_size):
+    def __init__(self, hidden_size):
         super().__init__()
         self.hidden_size = hidden_size
         self.dropout = nn.Dropout(0.2)
@@ -29,19 +40,20 @@ class MultiHeadAttention(nn.Module):
         self.k_proj = nn.Linear(embedding_size, embedding_size)
         self.v_proj = nn.Linear(embedding_size, embedding_size)
 
-        self.attention = Attention(self.head_size, embedding_size)
+        self.attention = Attention(num_heads)
         self.projection = nn.Linear(embedding_size, embedding_size)
         self.dropout = nn.Dropout(0.2)
+        self.layer_norm = LayerNorm(embedding_size)
 
-    def forward(self, q, k, v, mask=None):
-        seq_length = q.shape[1]
+    def forward(self, x, mask=None):
+        seq_length = x.shape[1]
 
-        q = self.q_proj(q).contiguous().view(-1, self.num_heads, seq_length, self.head_size)
-        k = self.k_proj(k).contiguous().view(-1, self.num_heads, seq_length, self.head_size)
-        v = self.v_proj(v).contiguous().view(-1, self.num_heads, seq_length, self.head_size)
+        q = self.q_proj(x).contiguous().view(-1, self.num_heads, seq_length, self.head_size)
+        k = self.k_proj(x).contiguous().view(-1, self.num_heads, seq_length, self.head_size)
+        v = self.v_proj(x).contiguous().view(-1, self.num_heads, seq_length, self.head_size)
 
         output = self.attention(q, k, v, mask=mask).reshape(-1, seq_length, self.embedding_size)
-        return self.projection(self.dropout(output))
+        return self.layernorm(x + self.projection(self.dropout(output)))
 
 class FeedForward(nn.Module):
     def __init__(self, embedding_size, output_size):
@@ -50,25 +62,42 @@ class FeedForward(nn.Module):
         self.linear2 = nn.Linear(output_size, embedding_size)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(0.2)
+        self.layer_norm = LayerNorm(embedding_size)
 
     def forward(self, x):
-        return self.dropout(self.linear2(self.relu(self.linear1(x))))
+        return self.layer_norm(x + self.dropout(self.linear2(self.relu(self.linear1(x)))))
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, ):
+    # TODO Optimize memory
+    def __init__(self):
         super().__init__()
 
     def forward(self, x):
         _, seq_length, d_model = x.shape
-        output = torch.zeros_like(x)
+        pe = torch.zeros_like(x)
         numerator = torch.arange(seq_length).unsqueeze(-1)
         denominator = torch.pow(10000, torch.arange(0, d_model, 2)/d_model)
-        output[:, :, ::2] = torch.sin(numerator/denominator)
-        output[:, :, 1::2] = torch.cos(numerator/denominator)
-        return output
+        pe[:, :, ::2] = torch.sin(numerator/denominator)
+        pe[:, :, 1::2] = torch.cos(numerator/denominator)
+        return x + pe
 
 class Encoder(nn.Module):
-    pass
+    def __init__(self, vocab_size, num_layers):
+        super().__init__()
+        self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=512)
+        self.positional_encoding = PositionalEncoding()
+        self.layers = nn.ModuleList([
+            nn.Sequential(
+                MultiHeadAttention(embedding_size=512, num_heads=8),
+                FeedForward(embedding_size=512, output_size=2048)
+            ) for _ in range(num_layers)
+        ])
+
+    def forward(self, x):
+        x = self.positional_encoding(x)
+        for layer in self.layers:
+            x = layer(x)
+        return x
 
 class Decoder(nn.Module):
     pass
