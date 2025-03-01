@@ -15,16 +15,16 @@ class LayerNorm(nn.Module):
         return self.gamma * ((x - mean)/(std + 1e-8)) + self.beta
 
 class Attention(nn.Module):
-    def __init__(self, hidden_size):
+    def __init__(self, head_size):
         super().__init__()
-        self.hidden_size = hidden_size
+        self.head_size = head_size
         self.dropout = nn.Dropout(0.2)
 
     def forward(self, q, k, v, mask=None):
         scores = q @ k.transpose(-2, -1)
         if mask is not None:
             scores = scores.masked_fill(mask == 0, float('-inf'))
-        attn_weights = F.softmax(scores/sqrt(self.hidden_size), dim=-1)
+        attn_weights = F.softmax(scores/sqrt(self.head_size), dim=-1)
         return self.dropout(attn_weights) @ v
 
 class MultiHeadAttention(nn.Module):
@@ -40,7 +40,7 @@ class MultiHeadAttention(nn.Module):
         self.k_proj = nn.Linear(embedding_size, embedding_size)
         self.v_proj = nn.Linear(embedding_size, embedding_size)
 
-        self.attention = Attention(num_heads)
+        self.attention = Attention(self.head_size)
         self.projection = nn.Linear(embedding_size, embedding_size)
         self.dropout = nn.Dropout(0.2)
         self.layer_norm = LayerNorm(embedding_size)
@@ -53,7 +53,7 @@ class MultiHeadAttention(nn.Module):
         v = self.v_proj(x).contiguous().view(-1, self.num_heads, seq_length, self.head_size)
 
         output = self.attention(q, k, v, mask=mask).reshape(-1, seq_length, self.embedding_size)
-        return self.layernorm(x + self.projection(self.dropout(output)))
+        return self.layer_norm(x + self.projection(self.dropout(output)))
 
 class FeedForward(nn.Module):
     def __init__(self, embedding_size, output_size):
@@ -73,7 +73,7 @@ class PositionalEncoding(nn.Module):
         super().__init__()
 
     def forward(self, x):
-        _, seq_length, d_model = x.shape
+        seq_length, d_model = x.shape[-2:]
         pe = torch.zeros_like(x)
         numerator = torch.arange(seq_length).unsqueeze(-1)
         denominator = torch.pow(10000, torch.arange(0, d_model, 2)/d_model)
@@ -93,7 +93,8 @@ class Encoder(nn.Module):
             ) for _ in range(num_layers)
         ])
 
-    def forward(self, x):
+    def forward(self, x, padding_mask=None):
+        x = self.embedding(x)
         x = self.positional_encoding(x)
         for layer in self.layers:
             x = layer(x)
