@@ -23,7 +23,7 @@ class Attention(nn.Module):
     def forward(self, q, k, v, attn_mask=None, pad_mask=None):
         scores = q @ k.transpose(-2, -1)
         if pad_mask is not None:
-            scores = scores.masked_fill(pad_mask == 0, float('-inf'))
+            scores = scores.masked_fill(pad_mask.unsqueeze(1).unsqueeze(1) == 0, float('-inf'))
         if attn_mask is not None:
             scores = scores.masked_fill(attn_mask == 0, float('-inf'))
         attn_weights = F.softmax(scores/sqrt(self.head_size), dim=-1)
@@ -48,14 +48,16 @@ class MultiHeadAttention(nn.Module):
         self.layer_norm = LayerNorm(embedding_size)
 
     def forward(self, q, k, v, attn_mask=None, pad_mask=None):
-        x = q.clone().detach()
-        seq_length = q.shape[1]
+        x = q.clone()
+        q_seq_len = q.shape[1]
+        k_seq_len = k.shape[1]
+        v_seq_len = v.shape[1]
 
-        q = self.q_proj(q).contiguous().view(-1, self.num_heads, seq_length, self.head_size)
-        k = self.k_proj(k).contiguous().view(-1, self.num_heads, seq_length, self.head_size)
-        v = self.v_proj(v).contiguous().view(-1, self.num_heads, seq_length, self.head_size)
+        q = self.q_proj(q).contiguous().view(-1, self.num_heads, q_seq_len, self.head_size)
+        k = self.k_proj(k).contiguous().view(-1, self.num_heads, k_seq_len, self.head_size)
+        v = self.v_proj(v).contiguous().view(-1, self.num_heads, v_seq_len, self.head_size)
 
-        output = self.attention(q, k, v, attn_mask=attn_mask, pad_mask=pad_mask).reshape(-1, seq_length, self.embedding_size)
+        output = self.attention(q, k, v, attn_mask=attn_mask, pad_mask=pad_mask).reshape(-1, q_seq_len, self.embedding_size)
         return self.layer_norm(x + self.projection(self.dropout(output)))
 
 class FeedForward(nn.Module):
@@ -85,9 +87,9 @@ class PositionalEncoding(nn.Module):
         return x + pe
 
 class Encoder(nn.Module):
-    def __init__(self, vocab_size, num_layers):
+    def __init__(self, vocab_size, padding_idx, num_layers=8):
         super().__init__()
-        self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=512)
+        self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=512, padding_idx=padding_idx)
         self.positional_encoding = PositionalEncoding()
         self.layers = nn.ModuleList([
             nn.Sequential(
@@ -106,9 +108,9 @@ class Encoder(nn.Module):
         return input
 
 class Decoder(nn.Module):
-    def __init__(self, vocab_size, num_layers):
+    def __init__(self, vocab_size, padding_idx, num_layers=8):
         super().__init__()
-        self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=512)
+        self.embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=512, padding_idx=padding_idx)
         self.positional_encoding = PositionalEncoding()
         self.linear = nn.Linear(512, vocab_size)
         self.layers = nn.ModuleList([
@@ -131,4 +133,11 @@ class Decoder(nn.Module):
         return input
 
 class EncoderDecoder(nn.Module):
-    pass
+    def __init__(self, encoder, decoder):
+        super().__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+
+    def forward(self, encoder_inputs, decoder_inputs, attn_masks=(None, None), pad_masks=(None, None)):
+        encoder_outputs = self.encoder(encoder_inputs, attn_mask=attn_masks[0], pad_mask=pad_masks[0])
+        return self.decoder(decoder_inputs, encoder_outputs, attn_mask=attn_masks[1], enc_pad_mask=pad_masks[0], dec_pad_mask=pad_masks[1])
