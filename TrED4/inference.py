@@ -1,3 +1,5 @@
+from token import tok_name
+
 import torch
 from EncoderDecoder import *
 from data_preprocessing import tokenize, index_texts, add_special_tokens
@@ -30,12 +32,12 @@ vocabs = {
 EN_VOCAB_SIZE = len(en_vocab['index_value'])
 FR_VOCAB_SIZE = len(fr_vocab['index_value'])
 
-encoder = Encoder(vocab_size=EN_VOCAB_SIZE, pad_token=en_vocab['value_index']['<PAD>'])
-decoder = Decoder(vocab_size=FR_VOCAB_SIZE, pad_token=fr_vocab['value_index']['<PAD>'])
+encoder = Encoder(vocab_size=EN_VOCAB_SIZE, num_layers=8)
+decoder = Decoder(vocab_size=FR_VOCAB_SIZE, num_layers=8)
 model = EncoderDecoder(encoder, decoder)
 
 model.load_state_dict(
-    torch.load('parameters/parameters_02_25_2025-06_16_58.pt', weights_only=True, map_location=device))
+    torch.load('parameters/parameters_03_01_2025-21_19_49.pt', weights_only=True, map_location=device))
 model.eval()
 
 def preprocess(text, tokenizer, vocab):
@@ -57,14 +59,15 @@ def temperature_scaling(logits, temperature):
         return softmax(logits/temperature, dim=-1)
     return softmax(logits, dim=-1)
 
-def predict_next_token(last_token, encoder_output, memory_state, vocab, temperature=0.0):
-    token_logits, (h_t, c_t) = model.decoder(last_token, encoder_output, memory_state, get_lengths(last_token, vocab))
+def predict_next_token(decoder_inputs, encoder_outputs, vocab, temperature=0.0):
+    attn_mask = torch.tril(torch.ones(decoder_inputs.size(1), decoder_inputs.size(1), device=device)),
+    token_logits = model.decoder(decoder_inputs, encoder_outputs)[:, -1]
     token_scores = temperature_scaling(logits=token_logits, temperature=temperature)
     if temperature > 0:
         next_token = torch.multinomial(torch.squeeze(token_scores), 1, replacement=True)[None, :]
     else:
         next_token = torch.argmax(token_scores, dim=-1)
-    return next_token, (h_t, c_t)
+    return next_token
 
 def normalize_output(text_tokens):
     text = " ".join(token for token in text_tokens if token not in ('<SOS>', '<EOS>'))
@@ -89,8 +92,8 @@ def translate(text, temperature=0.6, token_limit=1000):
 
         decoder_inputs = torch.tensor([[vocabs['fr_vocab']['value_index']['<SOS>']]]).to(device)
         encoder_inputs = torch.tensor(preprocess(text, tokenizers['en_tokenizer'], vocabs['en_vocab'])).to(device)
-        encoder_lengths = get_lengths(encoder_inputs, en_vocab)
-        encoder_outputs, hidden = model.encoder(encoder_inputs, encoder_lengths)
+
+        encoder_outputs = model.encoder(encoder_inputs)
 
         eos_marks = (
             vocabs['fr_vocab']['value_index']['!'],
@@ -99,7 +102,7 @@ def translate(text, temperature=0.6, token_limit=1000):
         )
 
         for _ in range(token_limit):
-            next_token, hidden = predict_next_token(decoder_inputs[:, -1:], encoder_outputs, hidden, vocabs['fr_vocab'], temperature=temperature)
+            next_token = predict_next_token(decoder_inputs, encoder_outputs, vocabs['fr_vocab'], temperature=temperature)
             decoder_inputs = torch.cat([decoder_inputs, next_token], dim=1)
             if decoder_inputs[0, -1].item() in eos_marks:
                 break
